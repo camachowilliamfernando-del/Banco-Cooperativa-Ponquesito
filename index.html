@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Banco Cooperativa Ponquesito - Cajero Biométrico</title>
+    <meta name="theme-color" content="#0a1e3c">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Ponquesito">
+    <link rel="manifest" id="manifestPlaceholder">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='40' fill='%230a1e3c'/%3E%3Ctext x='96' y='130' font-size='110' text-anchor='middle' fill='%23d4af37'%3E%F0%9F%8F%A6%3C/text%3E%3C/svg%3E">
+    <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; }
+
+        body {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #0b1426;
+            padding: 20px;
+        }
+
+        .atm-screen {
+            width: 100%;
+            max-width: 900px;
+            background: #ffffff;
+            border-radius: 24px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .atm-header {
+            background: #0a1e3c;
+            padding: 20px 32px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 3px solid #d4af37;
+            gap: 12px;
+        }
+
+        .bank-brand { display: flex; align-items: center; gap: 16px; flex: 1; min-width: 0; }
+
+        .bank-logo {
+            width: 48px; height: 48px; flex-shrink: 0;
+            background: #d4af37; border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 26px; color: #0a1e3c; font-weight: bold;
+        }
+
+        .bank-name h1 { font-size: 18px; font-weight: 700; color: #ffffff; letter-spacing: 0.5px; }
+        .bank-name p { font-size: 11px; color: #8ba3c7; letter-spacing: 1px; text-transform: uppercase; margin-top: 2px; }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            flex-shrink: 0;
+        }
+
+        .session-info { text-align: right; color: #8ba3c7; font-size: 12px; font-family: 'Courier New', monospace; }
+        .session-info .status-dot {
+            display: inline-block; width: 8px; height: 8px;
+            background: #00e676; border-radius: 50%;
+            margin-right: 6px; box-shadow: 0 0 8px #00e676;
+            animation: pulse 2s infinite;
+        }
+
+        /* ============================================================
+           BOTÓN DE INSTALACIÓN PWA
+        ============================================================ */
+        .install-btn {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            background: #d4af37;
+            color: #0a1e3c;
+            border: none;
+            padding: 9px 16px;
+            border-radius: 10px;
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.25s;
+            box-shadow: 0 4px 12px rgba(212, 175, 55, 0.4);
+            white-space: nowrap;
+        }
+
+        .install-btn.visible { display: inline-flex; }
+
+        .install-btn:hover {
+            background: #e6c04a;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 18px rgba(212, 175, 55, 0.6);
+        }
+
+        .install-btn:active { transform: translateY(0); }
+
+        .install-btn .icon { font-size: 15px; }
+
+        /* Tooltip de instalación para iOS */
+        .ios-install-tooltip {
+            display: none;
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(10, 30, 60, 0.97);
+            backdrop-filter: blur(10px);
+            color: #ffffff;
+            padding: 14px 22px;
+            border-radius: 14px;
+            font-size: 13px;
+            max-width: 340px;
+            text-align: center;
+            z-index: 3000;
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(212, 175, 55, 0.4);
+            animation: slideUp 0.4s ease;
+        }
+
+        .ios-install-tooltip.visible { display: block; }
+
+        .ios-install-tooltip::before {
+            content: '📲';
+            display: block;
+            font-size: 24px;
+            margin-bottom: 6px;
+        }
+
+        .ios-install-tooltip .close-tip {
+            display: inline-block;
+            margin-top: 10px;
+            padding: 6px 14px;
+            background: #d4af37;
+            color: #0a1e3c;
+            border-radius: 8px;
+            font-weight: 700;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        @keyframes slideUp {
+            from { transform: translate(-50%, 20px); opacity: 0; }
+            to { transform: translate(-50%, 0); opacity: 1; }
+        }
+
+        .atm-body {
+            display: flex; flex-direction: column;
+            padding: 32px; background: #f8fafc; gap: 24px;
+        }
+
+        .camera-container {
+            position: relative; width: 100%; max-width: 420px; margin: 0 auto;
+            aspect-ratio: 4/3; background: #000; border-radius: 20px;
+            overflow: hidden; box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.2);
+            border: 4px solid #ffffff; outline: 1px solid #e2e8f0;
+        }
+
+        .camera-container video,
+        .camera-container canvas {
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1);
+        }
+        .camera-container canvas { z-index: 2; }
+
+        .scan-frame {
+            position: absolute; inset: 15%;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 12px; z-index: 3; pointer-events: none;
+        }
+        .scan-frame::before, .scan-frame::after {
+            content: ''; position: absolute; width: 20px; height: 20px;
+            border-color: #00d4ff; border-style: solid;
+        }
+        .scan-frame::before { top: -2px; left: -2px; border-width: 3px 0 0 3px; border-radius: 8px 0 0 0; }
+        .scan-frame::after { bottom: -2px; right: -2px; border-width: 0 3px 3px 0; border-radius: 0 0 8px 0; }
+
+        .camera-overlay-badge {
+            position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+            background: rgba(10, 30, 60, 0.85); backdrop-filter: blur(8px);
+            padding: 6px 18px; border-radius: 30px; font-size: 12px; font-weight: 600;
+            color: #ffffff; z-index: 5; white-space: nowrap;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            display: flex; align-items: center; gap: 8px;
+        }
+
+        .status-indicator { width: 8px; height: 8px; border-radius: 50%; background: #ffb300; }
+        .status-indicator.active { background: #00e676; animation: pulse 1.5s infinite; }
+        .status-indicator.error { background: #ff5252; }
+
+        .customer-panel {
+            background: #ffffff; border-radius: 20px; padding: 24px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+            border: 1px solid #e2e8f0; display: flex; flex-direction: column; gap: 20px;
+            transition: all 0.4s ease; opacity: 0.7;
+        }
+        .customer-panel.identified {
+            opacity: 1; border-color: #0a1e3c;
+            box-shadow: 0 10px 25px -5px rgba(10, 30, 60, 0.1);
+        }
+
+        .panel-header {
+            display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 1px solid #e2e8f0; padding-bottom: 16px;
+        }
+        .panel-header h2 {
+            font-size: 14px; color: #64748b; text-transform: uppercase;
+            letter-spacing: 1px; font-weight: 600;
+        }
+        .panel-header .confidence-badge {
+            background: #f1f5f9; padding: 4px 12px; border-radius: 20px;
+            font-size: 12px; font-weight: 700; color: #0a1e3c;
+            font-family: 'Courier New', monospace; transition: all 0.3s;
+        }
+        .panel-header .confidence-badge.high { background: #dcfce7; color: #166534; }
+
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .info-item { display: flex; flex-direction: column; gap: 4px; }
+        .info-item.full-width { grid-column: span 2; }
+        .info-item .label {
+            font-size: 11px; font-weight: 600; color: #94a3b8;
+            text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .info-item .value {
+            font-size: 16px; font-weight: 700; color: #0f172a;
+            font-family: 'Courier New', monospace; transition: color 0.3s;
+        }
+        .info-item .value.empty {
+            color: #cbd5e1; font-family: 'Segoe UI', sans-serif;
+            font-weight: 400; font-style: italic; font-size: 14px;
+        }
+
+        .saldo-highlight {
+            background: #f8fafc; border-radius: 16px; padding: 18px 20px;
+            border: 1px solid #e2e8f0; display: flex; flex-direction: column;
+            gap: 4px; transition: all 0.4s;
+        }
+        .saldo-highlight.identified { background: #0a1e3c; border-color: #0a1e3c; }
+        .saldo-highlight .label {
+            font-size: 11px; color: #64748b; text-transform: uppercase;
+            letter-spacing: 1px; font-weight: 600;
+        }
+        .saldo-highlight.identified .label { color: #8ba3c7; }
+        .saldo-highlight .amount {
+            font-size: 32px; font-weight: 800; color: #0f172a;
+            font-family: 'Courier New', monospace; letter-spacing: -0.5px;
+            transition: color 0.3s;
+        }
+        .saldo-highlight.identified .amount { color: #ffffff; }
+        .saldo-highlight .amount .currency { font-size: 18px; font-weight: 600; color: #64748b; margin-right: 4px; }
+        .saldo-highlight.identified .amount .currency { color: #d4af37; }
+
+        .actions-row { display: flex; gap: 12px; margin-top: 8px; }
+        .btn {
+            flex: 1; padding: 14px 20px; border: none; border-radius: 12px;
+            font-weight: 700; font-size: 13px; cursor: pointer;
+            transition: all 0.2s; text-align: center;
+            text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        .btn-primary {
+            background: #0a1e3c; color: #ffffff;
+            box-shadow: 0 4px 6px -1px rgba(10, 30, 60, 0.3);
+        }
+        .btn-primary:hover:not(:disabled) { background: #132b4f; transform: translateY(-1px); }
+
+        .btn-secondary {
+            background: #ffffff; color: #0a1e3c; border: 1px solid #cbd5e1;
+        }
+        .btn-secondary:hover { background: #f1f5f9; }
+        .btn-secondary:active { background: #e2e8f0; transform: scale(0.98); }
+        .btn-secondary.flash { background: #dcfce7; border-color: #16a34a; color: #16a34a; }
+
+        .btn-danger {
+            background: #ffffff; color: #dc2626; border: 1px solid #fecaca;
+            flex: 0 0 auto; padding: 14px 16px;
+        }
+        .btn-danger:hover { background: #fef2f2; border-color: #dc2626; }
+
+        .atm-footer {
+            padding: 16px 32px; background: #ffffff; border-top: 1px solid #e2e8f0;
+            display: flex; justify-content: space-between;
+            font-size: 11px; color: #94a3b8; letter-spacing: 0.5px;
+        }
+        .atm-footer .secure { color: #166534; font-weight: 600; display: flex; align-items: center; gap: 4px; }
+
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(10, 30, 60, 0.8);
+            backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center;
+            z-index: 1000; opacity: 0; pointer-events: none; transition: opacity 0.3s;
+        }
+        .modal-overlay.active { opacity: 1; pointer-events: all; }
+        .modal {
+            background: #ffffff; border-radius: 24px; padding: 32px;
+            max-width: 400px; width: 90%; text-align: center;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
+            transform: scale(0.9); transition: transform 0.3s;
+        }
+        .modal-overlay.active .modal { transform: scale(1); }
+        .modal .icon { font-size: 48px; margin-bottom: 16px; }
+        .modal h3 { color: #0a1e3c; margin-bottom: 8px; font-size: 20px; }
+        .modal .account-box { background: #f8fafc; padding: 20px; border-radius: 16px; margin: 20px 0; border: 1px dashed #cbd5e1; }
+        .modal .acc-number { font-family: 'Courier New', monospace; font-size: 18px; color: #0a1e3c; font-weight: 800; letter-spacing: 1px; }
+        .modal .acc-name { font-size: 14px; color: #475569; margin-top: 6px; }
+        .modal .acc-saldo { font-size: 22px; color: #166534; margin-top: 12px; font-weight: 800; }
+        .modal .btn { width: 100%; margin-top: 16px; background: #0a1e3c; color: white; padding: 14px; border-radius: 12px; border: none; font-weight: 700; cursor: pointer; }
+
+        .loading-overlay {
+            position: fixed; inset: 0; background: #0b1426; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; z-index: 2000; transition: opacity 0.5s; gap: 20px;
+        }
+        .loading-overlay .spinner {
+            width: 50px; height: 50px; border: 3px solid rgba(212, 175, 55, 0.2);
+            border-top-color: #d4af37; border-radius: 50%; animation: spin 1s linear infinite;
+        }
+        .loading-overlay p { color: #8ba3c7; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; }
+        .loading-overlay.hidden { opacity: 0; pointer-events: none; }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+        @media (max-width: 700px) {
+            .atm-body { padding: 20px; }
+            .atm-header { padding: 14px 18px; flex-wrap: wrap; }
+            .bank-name h1 { font-size: 14px; }
+            .bank-name p { font-size: 9px; }
+            .header-right { gap: 8px; }
+            .session-info { display: none; }
+            .install-btn { padding: 8px 12px; font-size: 11px; }
+            .install-btn .label { display: none; }
+            .install-btn .icon { font-size: 18px; }
+        }
+
+        @media (max-width: 600px) {
+            .info-grid { grid-template-columns: 1fr; }
+            .info-item.full-width { grid-column: span 1; }
+            .saldo-highlight .amount { font-size: 26px; }
+            .actions-row { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="loading-overlay" id="loader">
+        <div class="spinner"></div>
+        <p>Iniciando sesión segura...</p>
+    </div>
+
+    <div class="modal-overlay" id="accountModal">
+        <div class="modal">
+            <div class="icon">✅</div>
+            <h3>Registro Exitoso</h3>
+            <p style="color:#64748b; font-size:14px;">Su cuenta de ahorros ha sido aperturada</p>
+            <div class="account-box">
+                <div class="acc-number" id="modalAccount">---</div>
+                <div class="acc-name" id="modalName">---</div>
+                <div class="acc-saldo" id="modalSaldo">---</div>
+            </div>
+            <button class="btn" id="closeModal">Entendido</button>
+        </div>
+    </div>
+
+    <!-- Tooltip para iOS -->
+    <div class="ios-install-tooltip" id="iosTooltip">
+        Para instalar en iPhone/iPad:<br>
+        1. Toca el botón <strong>Compartir</strong> (⬆️)<br>
+        2. Selecciona <strong>"Añadir a pantalla de inicio"</strong>
+        <div class="close-tip" id="closeIosTip">Entendido</div>
+    </div>
+
+    <div class="atm-screen">
+        
+        <div class="atm-header">
+            <div class="bank-brand">
+                <div class="bank-logo">🏦</div>
+                <div class="bank-name">
+                    <h1>Banco Cooperativa Ponquesito</h1>
+                    <p>Banca Biométrica</p>
+                </div>
+            </div>
+            <div class="header-right">
+                <button class="install-btn" id="installBtn" title="Instalar aplicación">
+                    <span class="icon">📲</span>
+                    <span class="label">Instalar App</span>
+                </button>
+                <div class="session-info">
+                    <span class="status-dot"></span> Sesión Segura
+                </div>
+            </div>
+        </div>
+
+        <div class="atm-body">
+            
+            <div class="camera-container">
+                <video id="video" autoplay muted playsinline></video>
+                <canvas id="overlay"></canvas>
+                <div class="scan-frame"></div>
+                <div class="camera-overlay-badge" id="status">
+                    <span class="status-indicator" id="statusDot"></span>
+                    <span id="statusText">Iniciando cámara...</span>
+                </div>
+            </div>
+
+            <div class="customer-panel" id="customerPanel">
+                <div class="panel-header">
+                    <h2>Información del Cliente</h2>
+                    <span class="confidence-badge" id="confidenceBadge">---</span>
+                </div>
+
+                <div class="info-grid">
+                    <div class="info-item full-width">
+                        <span class="label">Nombre Completo</span>
+                        <span class="value empty" id="name">Esperando identificación biométrica...</span>
+                    </div>
+                    <div class="info-item full-width">
+                        <span class="label">Cuenta de Ahorros</span>
+                        <span class="value empty" id="account">---</span>
+                    </div>
+                </div>
+
+                <div class="saldo-highlight" id="saldoContainer">
+                    <span class="label">Saldo Disponible</span>
+                    <div class="amount" id="saldo">
+                        <span class="currency">$</span><span id="saldoValue">---</span>
+                    </div>
+                </div>
+
+                <div class="actions-row">
+                    <button class="btn btn-primary" id="registerBtn" disabled>Registrar Cliente</button>
+                    <button class="btn btn-secondary" id="clearBtn" title="Un clic: limpiar sesión | Doble clic: borrar todos los clientes">Limpiar</button>
+                    <button class="btn btn-danger" id="deleteAllBtn" title="Eliminar TODOS los clientes registrados">🗑️</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="atm-footer">
+            <span>© 2025 Banco Cooperativa Ponquesito</span>
+            <span class="secure">🔒 Conexión Encriptada</span>
+        </div>
+    </div>
+
+    <script>
+        // ============================================================
+        // 📲 PWA - GENERAR MANIFEST DINÁMICO
+        // ============================================================
+        const manifestData = {
+            name: "Banco Cooperativa Ponquesito",
+            short_name: "Ponquesito",
+            description: "Cajero biométrico con reconocimiento facial",
+            start_url: window.location.href,
+            display: "standalone",
+            orientation: "portrait",
+            background_color: "#0b1426",
+            theme_color: "#0a1e3c",
+            icons: [
+                {
+                    src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='40' fill='%230a1e3c'/%3E%3Ctext x='96' y='130' font-size='110' text-anchor='middle' fill='%23d4af37'%3E%F0%9F%8F%A6%3C/text%3E%3C/svg%3E",
+                    sizes: "192x192",
+                    type: "image/svg+xml",
+                    purpose: "any maskable"
+                },
+                {
+                    src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='100' fill='%230a1e3c'/%3E%3Ctext x='256' y='340' font-size='290' text-anchor='middle' fill='%23d4af37'%3E%F0%9F%8F%A6%3C/text%3E%3C/svg%3E",
+                    sizes: "512x512",
+                    type: "image/svg+xml",
+                    purpose: "any maskable"
+                }
+            ]
+        };
+
+        const manifestBlob = new Blob([JSON.stringify(manifestData)], { type: 'application/json' });
+        const manifestURL = URL.createObjectURL(manifestBlob);
+        document.getElementById('manifestPlaceholder').setAttribute('href', manifestURL);
+
+        // ============================================================
+        // 📲 LÓGICA DE INSTALACIÓN
+        // ============================================================
+        const installBtn = document.getElementById('installBtn');
+        const iosTooltip = document.getElementById('iosTooltip');
+        let deferredPrompt = null;
+
+        // Detectar si es iOS (no soporta beforeinstallprompt)
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+
+        // Si ya está instalada, no mostrar botón
+        if (isStandalone) {
+            installBtn.style.display = 'none';
+        } else if (isIOS) {
+            // En iOS mostramos el botón y al hacer clic, el tooltip
+            installBtn.classList.add('visible');
+            installBtn.addEventListener('click', () => {
+                iosTooltip.classList.add('visible');
+            });
+            document.getElementById('closeIosTip').addEventListener('click', () => {
+                iosTooltip.classList.remove('visible');
+            });
+        }
+
+        // Chrome/Edge/Android: capturar el evento beforeinstallprompt
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            if (!isStandalone) installBtn.classList.add('visible');
+            console.log('✅ PWA lista para instalar');
+        });
+
+        // Click del botón instalar (Chrome/Edge/Android)
+        installBtn.addEventListener('click', async () => {
+            if (isIOS) {
+                iosTooltip.classList.add('visible');
+                return;
+            }
+            if (!deferredPrompt) {
+                alert('ℹ️ La instalación no está disponible en este navegador.\n\nPrueba en Chrome, Edge o Samsung Internet.');
+                return;
+            }
+            deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            console.log('📲 Resultado instalación:', outcome);
+            if (outcome === 'accepted') {
+                installBtn.classList.remove('visible');
+            }
+            deferredPrompt = null;
+        });
+
+        // Detectar cuando la app se instaló
+        window.addEventListener('appinstalled', () => {
+            console.log('✅ App instalada exitosamente');
+            installBtn.classList.remove('visible');
+        });
+
+        // ============================================================
+        // 🏦 LÓGICA DEL CAJERO (idéntica a la versión corregida)
+        // ============================================================
+        const video = document.getElementById('video');
+        const overlay = document.getElementById('overlay');
+        const statusText = document.getElementById('statusText');
+        const statusDot = document.getElementById('statusDot');
+        const nameEl = document.getElementById('name');
+        const accountEl = document.getElementById('account');
+        const saldoValueEl = document.getElementById('saldoValue');
+        const confidenceBadge = document.getElementById('confidenceBadge');
+        const registerBtn = document.getElementById('registerBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const deleteAllBtn = document.getElementById('deleteAllBtn');
+        const loader = document.getElementById('loader');
+        const accountModal = document.getElementById('accountModal');
+        const modalAccount = document.getElementById('modalAccount');
+        const modalName = document.getElementById('modalName');
+        const modalSaldo = document.getElementById('modalSaldo');
+        const closeModal = document.getElementById('closeModal');
+        const customerPanel = document.getElementById('customerPanel');
+        const saldoContainer = document.getElementById('saldoContainer');
+
+        let faceMatcher = null;
+        let isModelReady = false;
+        let currentUserDetected = null;
+        let manualClear = false;
+        let clearTimeoutId = null;
+        let detectIntervalId = null;
+        let processingDetection = false;
+        const CLEAR_COOLDOWN_MS = 4000;
+
+        const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights';
+
+        function generarCuentaAhorros() {
+            const prefijos = ['2201', '2202', '2203', '2204', '2205'];
+            const prefijo = prefijos[Math.floor(Math.random() * prefijos.length)];
+            const oficina = String(Math.floor(Math.random() * 99) + 1).padStart(2, '0');
+            const secuencial = String(Math.floor(Math.random() * 99999999) + 1).padStart(8, '0');
+            const base = prefijo + oficina + secuencial;
+            const dv = calcularDigitoVerificador(base);
+            const cuenta = base + dv;
+            const existentes = JSON.parse(localStorage.getItem('ponquesitoUsers') || '{}');
+            for (const k in existentes) {
+                if (existentes[k].account === formatearCuenta(cuenta)) return generarCuentaAhorros();
+            }
+            return formatearCuenta(cuenta);
+        }
+        function calcularDigitoVerificador(cadena) {
+            const coef = [2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1];
+            let suma = 0; const rev = cadena.split('').reverse();
+            for (let i = 0; i < rev.length && i < coef.length; i++) {
+                let p = parseInt(rev[i]) * coef[i]; if (p > 9) p -= 9; suma += p;
+            }
+            const r = suma % 10; return r === 0 ? 0 : 10 - r;
+        }
+        function formatearCuenta(n) {
+            if (n.length !== 15) return n;
+            return `${n.slice(0,4)}-${n.slice(4,6)}-${n.slice(6,10)}-${n.slice(10,14)}-${n.slice(14)}`;
+        }
+        function generarSaldoAleatorio() { return Math.random() * (15000 - 500) + 500; }
+        function formatearSaldo(v) { return v.toLocaleString('es-EC', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+
+        async function init() {
+            try {
+                await Promise.all([
+                    faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+                    faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+                    faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+                ]);
+                isModelReady = true;
+                await loadUserDB();
+                await startCamera();
+                loader.classList.add('hidden');
+                registerBtn.disabled = false;
+            } catch (err) {
+                console.error(err);
+                loader.innerHTML = '<p style="color:#ff5252">Error al cargar modelos</p>';
+            }
+        }
+
+        async function startCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: 'user' } });
+                video.srcObject = stream;
+                video.addEventListener('loadedmetadata', () => {
+                    overlay.width = video.videoWidth;
+                    overlay.height = video.videoHeight;
+                    statusText.textContent = 'Buscando rostro...';
+                    statusDot.className = 'status-indicator';
+                    detectLoop();
+                });
+            } catch (err) {
+                statusText.textContent = 'Sin acceso a cámara';
+                statusDot.className = 'status-indicator error';
+                alert('Permite el acceso a la cámara.');
+            }
+        }
+
+        async function loadUserDB() {
+            const saved = JSON.parse(localStorage.getItem('ponquesitoUsers') || '{}');
+            const labeled = [];
+            for (const k in saved) {
+                if (saved[k].descriptor) {
+                    labeled.push(new faceapi.LabeledFaceDescriptors(saved[k].name, [new Float32Array(saved[k].descriptor)]));
+                }
+            }
+            faceMatcher = labeled.length > 0 ? new faceapi.FaceMatcher(labeled, 0.55) : null;
+            console.log('📚 Clientes en BD:', labeled.length);
+        }
+
+        async function detectLoop() {
+            if (!isModelReady) return;
+            const options = new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 });
+
+            detectIntervalId = setInterval(async () => {
+                if (manualClear) return;
+                if (processingDetection) return;
+                processingDetection = true;
+
+                try {
+                    if (video.paused || video.ended) { processingDetection = false; return; }
+
+                    const det = await faceapi.detectSingleFace(video, options).withFaceLandmarks().withFaceDescriptor();
+                    const ctx = overlay.getContext('2d');
+                    ctx.clearRect(0, 0, overlay.width, overlay.height);
+
+                    if (manualClear) { processingDetection = false; return; }
+
+                    if (det) {
+                        const box = det.detection.box;
+                        ctx.strokeStyle = currentUserDetected ? '#00e676' : '#d4af37';
+                        ctx.lineWidth = 3;
+                        ctx.strokeRect(overlay.width - box.x - box.width, box.y, box.width, box.height);
+                        if (faceMatcher) {
+                            const match = faceMatcher.findBestMatch(det.descriptor);
+                            if (match.label !== 'unknown' && match.distance < 0.55) {
+                                const user = getUserByName(match.label);
+                                if (user) {
+                                    currentUserDetected = user;
+                                    const conf = ((1 - match.distance) * 100).toFixed(0);
+                                    showUser(user, conf);
+                                }
+                            } else {
+                                if (currentUserDetected) resetInfo();
+                                statusText.textContent = 'Rostro no registrado';
+                                statusDot.className = 'status-indicator error';
+                            }
+                        } else {
+                            statusText.textContent = 'Registra tu rostro para continuar';
+                            statusDot.className = 'status-indicator';
+                        }
+                    } else {
+                        if (currentUserDetected) resetInfo();
+                        statusText.textContent = 'Buscando rostro...';
+                        statusDot.className = 'status-indicator';
+                    }
+                } catch (e) {
+                    // Ignorar errores
+                } finally {
+                    processingDetection = false;
+                }
+            }, 250);
+        }
+
+        function getUserByName(name) {
+            const store = JSON.parse(localStorage.getItem('ponquesitoUsers') || '{}');
+            for (const k in store) if (store[k].name === name) return store[k];
+            return null;
+        }
+
+        function showUser(user, conf) {
+            statusText.textContent = 'Cliente Identificado';
+            statusDot.className = 'status-indicator active';
+            nameEl.textContent = user.name;
+            nameEl.classList.remove('empty');
+            accountEl.textContent = user.account;
+            accountEl.classList.remove('empty');
+            saldoValueEl.textContent = formatearSaldo(user.saldo || 0);
+            confidenceBadge.textContent = conf + '%';
+            confidenceBadge.classList.add('high');
+            customerPanel.classList.add('identified');
+            saldoContainer.classList.add('identified');
+        }
+
+        function resetInfo() {
+            currentUserDetected = null;
+            nameEl.textContent = 'Esperando identificación biométrica...';
+            nameEl.classList.add('empty');
+            accountEl.textContent = '---';
+            accountEl.classList.add('empty');
+            saldoValueEl.textContent = '---';
+            confidenceBadge.textContent = '---';
+            confidenceBadge.classList.remove('high');
+            customerPanel.classList.remove('identified');
+            saldoContainer.classList.remove('identified');
+            const ctx = overlay.getContext('2d');
+            ctx.clearRect(0, 0, overlay.width, overlay.height);
+        }
+
+        clearBtn.addEventListener('click', () => {
+            manualClear = true;
+            resetInfo();
+            statusText.textContent = 'Sesión cerrada — Acérquese para continuar';
+            statusDot.className = 'status-indicator';
+            clearBtn.textContent = 'Espere...';
+            clearBtn.disabled = true;
+            clearBtn.classList.add('flash');
+            if (clearTimeoutId) clearTimeout(clearTimeoutId);
+            clearTimeoutId = setTimeout(() => {
+                manualClear = false;
+                statusText.textContent = 'Buscando rostro...';
+                statusDot.className = 'status-indicator';
+                clearBtn.textContent = 'Limpiar';
+                clearBtn.disabled = false;
+                clearBtn.classList.remove('flash');
+            }, CLEAR_COOLDOWN_MS);
+        });
+
+        deleteAllBtn.addEventListener('click', () => {
+            const store = JSON.parse(localStorage.getItem('ponquesitoUsers') || '{}');
+            const count = Object.keys(store).length;
+            if (count === 0) { alert('ℹ️ No hay clientes registrados.'); return; }
+            if (!confirm(`⚠️ ¿Eliminar TODOS los ${count} cliente(s) registrados?\n\nEsta acción NO se puede deshacer.`)) return;
+            localStorage.removeItem('ponquesitoUsers');
+            faceMatcher = null;
+            manualClear = true;
+            resetInfo();
+            if (clearTimeoutId) clearTimeout(clearTimeoutId);
+            clearTimeoutId = setTimeout(() => { manualClear = false; }, 1000);
+            statusText.textContent = 'BD vaciada — Registre nuevos clientes';
+            statusDot.className = 'status-indicator error';
+            deleteAllBtn.textContent = '✅';
+            deleteAllBtn.disabled = true;
+            setTimeout(() => { deleteAllBtn.textContent = '🗑️'; deleteAllBtn.disabled = false; }, 2000);
+        });
+
+        registerBtn.addEventListener('click', async () => {
+            if (manualClear) return;
+            registerBtn.disabled = true;
+            registerBtn.textContent = 'Capturando...';
+            try {
+                const det = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 })).withFaceLandmarks().withFaceDescriptor();
+                if (!det) { alert('No se detectó rostro'); registerBtn.disabled = false; registerBtn.textContent = 'Registrar Cliente'; return; }
+                const name = prompt('Nombre completo del cliente:');
+                if (!name || !name.trim()) { registerBtn.disabled = false; registerBtn.textContent = 'Registrar Cliente'; return; }
+                const nuevaCuenta = generarCuentaAhorros();
+                const nuevoSaldo = generarSaldoAleatorio();
+                const store = JSON.parse(localStorage.getItem('ponquesitoUsers') || '{}');
+                store['user_' + Date.now()] = { name: name.trim(), account: nuevaCuenta, saldo: nuevoSaldo, descriptor: Array.from(det.descriptor), fechaApertura: new Date().toISOString() };
+                localStorage.setItem('ponquesitoUsers', JSON.stringify(store));
+                await loadUserDB();
+                modalName.textContent = name.trim();
+                modalAccount.textContent = nuevaCuenta;
+                modalSaldo.textContent = '$ ' + formatearSaldo(nuevoSaldo);
+                accountModal.classList.add('active');
+            } catch (err) { console.error(err); alert('Error'); }
+            finally { registerBtn.disabled = false; registerBtn.textContent = 'Registrar Cliente'; }
+        });
+
+        closeModal.addEventListener('click', () => accountModal.classList.remove('active'));
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>
